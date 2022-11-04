@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "hardhat/console.sol";
 
 contract BunzzVestingWallet is Pausable {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -13,6 +14,7 @@ contract BunzzVestingWallet is Pausable {
     event EtherReleased(uint256 amount);
     event ERC20Released(address indexed token, uint256 amount);
     event CancelVesting();
+    event StartVesting();
 
     uint256 private _released;
     mapping(address => uint256) private _erc20Released;
@@ -97,8 +99,7 @@ contract BunzzVestingWallet is Pausable {
      * Emits a {EtherReleased} event.
      */
     function release() public whenNotPaused {
-        require (_start != 0, "not stared!");
-        uint256 releasable = vestedAmount(uint64(block.timestamp)) - released();
+        uint256 releasable = releasableAmount();
         _released += releasable;
         emit EtherReleased(releasable);
         Address.sendValue(payable(beneficiary()), releasable);
@@ -111,10 +112,11 @@ contract BunzzVestingWallet is Pausable {
      */
     function release(address token) public whenNotPaused {
         require (_start != 0, "not stared!");
-        uint256 releasable = vestedAmount(token, uint64(block.timestamp)) - released(token);
+        uint256 releasable = releasableAmount(token);
         _erc20Released[token] += releasable;
         emit ERC20Released(token, releasable);
         SafeERC20.safeTransfer(IERC20(token), beneficiary(), releasable);
+        _addToken(token);
     }
 
     /// @notice Change vesting manager address.
@@ -140,11 +142,15 @@ contract BunzzVestingWallet is Pausable {
         _start = startTimestamp;
         _duration = durationSeconds;
         _unpause();
+        _formatInfo();
+        emit StartVesting();
     }
 
-
+    /// @notice Cancel vesting
+    /// @dev Only vesting manager can call this function.
     function cancelVesting() external onlyManager whenNotPaused {
         _pause();
+        _cancelETHVesting();
         uint256 tokenLength = tokens.length();
         if (tokenLength > 0) {
             for (uint256 i = 0; i < tokenLength; i ++) {
@@ -179,6 +185,19 @@ contract BunzzVestingWallet is Pausable {
         return _vestingSchedule(IERC20(token).balanceOf(address(this)) + released(token), timestamp);
     }
 
+    /// @notice Get releasable ETH amount.
+    /// @return Releasable ETH amount.
+    function releasableAmount() public view returns (uint256) {
+        return vestedAmount(uint64(block.timestamp)) - released();
+    }
+
+    /// @notice Get releasable ERC20 amount.
+    /// @param token The address of ERC20.
+    /// @return Releasable ERC20 amount.
+    function releasableAmount(address token) public view returns (uint256) {
+        return vestedAmount(token, uint64(block.timestamp)) - released(token);
+    }
+
     /**
      * @dev implementation of the vesting formula. This returns the amount vested, as a function of time, for
      * an asset given its total historical allocation.
@@ -196,28 +215,52 @@ contract BunzzVestingWallet is Pausable {
     /// @notice Stop vesting fo ETH.
     /// @dev Send releasable amount to beneficiary and left will be sent to vesting manager.
     function _cancelETHVesting() internal {
-        uint256 releasable = vestedAmount(uint64(block.timestamp)) - released();
+        int256 releasable = int256(vestedAmount(uint64(block.timestamp))) - int256(released());
+        int256 leftAmount = 0;
         if (releasable > 0) {
-            Address.sendValue(payable(beneficiary()), releasable);
+            leftAmount = int256(address(this).balance) - int256(releasable);
+            Address.sendValue(payable(beneficiary()), uint256(releasable));
+            _released += uint256(releasable);
         }
         
-        uint256 leftAmount = address(this).balance - releasable;
         if (leftAmount > 0) {
-            Address.sendValue(payable(_vestingManager), leftAmount);
+            Address.sendValue(payable(_vestingManager), uint256(leftAmount));
         }
     }
 
     /// @notice Stop vesting of ERC20.
     /// @dev Send releasable amount to beneficiary and left will be sent to vesting manager.
     function _cancelERC20Vesting(address token) internal {
-        uint256 releasable = vestedAmount(token, uint64(block.timestamp)) - released(token);
+        int256 releasable = int256(vestedAmount(token, uint64(block.timestamp)) - released(token));
+        int256 leftAmount = 0;
         if (releasable > 0) {
-            SafeERC20.safeTransfer(IERC20(token), beneficiary(), releasable);
+            leftAmount = int256(IERC20(token).balanceOf(address(this))) - int256(releasable);
+            SafeERC20.safeTransfer(IERC20(token), beneficiary(), uint256(releasable));
+            _erc20Released[token] += uint256(releasable);
         }
         
-        uint256 leftAmount = address(this).balance - releasable;
         if (leftAmount > 0) {
-            SafeERC20.safeTransfer(IERC20(token), _vestingManager, leftAmount);
+            SafeERC20.safeTransfer(IERC20(token), _vestingManager, uint256(leftAmount));
         }
+    }
+
+    /// @notice notice all intial values with zero.
+    function _formatInfo() internal {
+        _released = 0;
+        address[] memory tokenAddrs = tokens.values();
+        for (uint256 i = 0; i < tokenAddrs.length; i ++) {
+            address token = tokenAddrs[i];
+            _erc20Released[token] = 0;
+            tokens.remove(token);
+        }
+    }
+
+    /// @notice add token to tokens.
+    /// @param token The address of ERC20 token.
+    function _addToken(address token) internal {
+        if (tokens.contains(token) == true) {
+            return;
+        }
+        tokens.add(token);
     }
 }
