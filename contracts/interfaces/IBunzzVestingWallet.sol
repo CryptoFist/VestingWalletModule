@@ -6,6 +6,8 @@ interface IBunzzVestingWallet {
 
     function getTokens() external view returns (address[] memory);
 
+    function addToken(address token) external;
+
     function start() external view returns (uint256);
 
     function duration() external view returns (uint256);

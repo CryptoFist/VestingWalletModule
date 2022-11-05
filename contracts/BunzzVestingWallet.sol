@@ -119,6 +119,13 @@ contract BunzzVestingWallet is Pausable {
         _addToken(token);
     }
 
+    /// @notice Add token to list.
+    /// @dev Only manager can call this function.
+    /// @param token The address of a token.
+    function addToken(address token) public whenNotPaused onlyManager {
+        _addToken(token);
+    }
+
     /// @notice Change vesting manager address.
     /// @dev Only vesting manager can call this function.
     /// @param newManager The address of new vesting manager.

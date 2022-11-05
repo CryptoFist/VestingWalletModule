@@ -8,6 +8,8 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "./BunzzVestingWallet.sol";
 import "./interfaces/IBunzzVestingWallet.sol";
 
+import "hardhat/console.sol";
+
 contract BunzzVestingManager is Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -30,12 +32,11 @@ contract BunzzVestingManager is Ownable {
     /// @param newBeneficiary The address of new beneficiary.
     function changeBeneficiary(address newBeneficiary) external {
         address sender = _msgSender();
-        require (sender != address(0), "invalid sender address");
-        IBunzzVestingWallet vestingWallet = IBunzzVestingWallet(vestingWallets[sender]);
         require (
             vestingUsers.contains(sender) == true, 
             "vesting is not started"
         );
+        IBunzzVestingWallet vestingWallet = IBunzzVestingWallet(vestingWallets[sender]);
         vestingWallet.changeBeneficiary(newBeneficiary);
         emit ChangeBeneficiary(sender, newBeneficiary);
     }
@@ -68,6 +69,7 @@ contract BunzzVestingManager is Ownable {
 
             vestingWallets[vestingUser] = newVestingWallet;
         }
+        vestingUsers.add(vestingUser);
 
         emit StartNewVesting(vestingUser);
         
@@ -77,12 +79,11 @@ contract BunzzVestingManager is Ownable {
     /// @dev Only owner can call this function.
     /// @param vestingPlayer The address of a vestingPlayer.
     function cancelVesting(address vestingPlayer) external onlyOwner {
-        IBunzzVestingWallet vestingWallet = IBunzzVestingWallet(vestingPlayer);
         require (
             vestingUsers.contains(vestingPlayer) == true, 
             "vesting is not started"
         );
-
+        IBunzzVestingWallet vestingWallet = IBunzzVestingWallet(vestingWallets[vestingPlayer]);
         vestingWallet.cancelVesting();
         vestingUsers.remove(vestingPlayer);
     }
@@ -127,6 +128,7 @@ contract BunzzVestingManager is Ownable {
             address vestingPlayer = vestingUsers.at(i);
             address vestingWallet = vestingWallets[vestingPlayer];
             SafeERC20.safeTransfer(IERC20(token), vestingWallet, divideAmount);
+            IBunzzVestingWallet(vestingWallet).addToken(token);
         }
     }
 
@@ -139,10 +141,12 @@ contract BunzzVestingManager is Ownable {
         uint256 userLength = users.length;
 
         require (userLength > 0, "invalid user list");
+        SafeERC20.safeTransferFrom(IERC20(token), msg.sender, address(this), amount);
         uint256 divideAmount = amount / userLength;
         for (uint256 i = 0; i < userLength; i ++) {
             address vestingWallet = vestingWallets[users[i]];
             SafeERC20.safeTransfer(IERC20(token), vestingWallet, divideAmount);
+            IBunzzVestingWallet(vestingWallet).addToken(token);
         }
     }
 
