@@ -89,7 +89,7 @@ contract BunzzVestingManager is Ownable {
     }
 
     /// @notice Deposit ETH and divide ETH to all vesting wallets.
-    function depositAndProvideETH() external payable onlyOwner {
+    function depositAndProvideETH() external payable {
         uint256 amount = msg.value;
         uint256 userLength = vestingUsers.length();
 
@@ -105,7 +105,7 @@ contract BunzzVestingManager is Ownable {
     /// @notice Deposit ETH to users vesting wallet.
     function depositToVestingWallets(
         address[] memory users
-    ) external payable onlyOwner {
+    ) external payable {
         uint256 amount = msg.value;
         uint256 userLength = users.length;
 
@@ -118,7 +118,7 @@ contract BunzzVestingManager is Ownable {
     }
 
     /// @notice Deposit ERC20 and divide ETH to all vesting wallets.
-    function depositAndProvideERC20(address token, uint256 amount) external onlyOwner {
+    function depositAndProvideERC20(address token, uint256 amount) external {
         uint256 userLength = vestingUsers.length();
         require (userLength > 0, "no vesting wallets to divide");
         
@@ -137,7 +137,7 @@ contract BunzzVestingManager is Ownable {
         address token,
         address[] memory users,
         uint256 amount
-    ) external onlyOwner {
+    ) external {
         uint256 userLength = users.length;
 
         require (userLength > 0, "invalid user list");

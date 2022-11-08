@@ -99,7 +99,9 @@ contract BunzzVestingWallet is Pausable {
      * Emits a {EtherReleased} event.
      */
     function release() public whenNotPaused {
+        require (_start != 0, "not stared!");
         uint256 releasable = releasableAmount();
+        require (releasable > 0, "no releasable amount");
         _released += releasable;
         emit EtherReleased(releasable);
         Address.sendValue(payable(beneficiary()), releasable);
@@ -113,6 +115,7 @@ contract BunzzVestingWallet is Pausable {
     function release(address token) public whenNotPaused {
         require (_start != 0, "not stared!");
         uint256 releasable = releasableAmount(token);
+        require (releasable > 0, "no releasable amount");
         _erc20Released[token] += releasable;
         emit ERC20Released(token, releasable);
         SafeERC20.safeTransfer(IERC20(token), beneficiary(), releasable);
