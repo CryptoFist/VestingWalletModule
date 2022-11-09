@@ -8,6 +8,7 @@ Devs can get paid through that contract.
 
 ## Variables
     | name              | type                          | description                                                           |
+    | :---              |    :----:                     |          ---:                                                         |
     | _released         | uint256                       | Presents total claimed native token amount.                           |
     | _erc20Released    | mapping(address => uint256)   | Presents total claimed erc20 token amount.                            |
     | _beneficiary      | address                       | Consider [constructor](#constructor)                                  |
@@ -18,6 +19,7 @@ Devs can get paid through that contract.
 
 ## constructor
     | name                  | type    | description                                                                         |
+    | :---                  | :----:  | ---:                                                                                |
     | vestingManager        | address | As manager address, this address will get permission for several actions            |
     | beneficiaryAddress    | address | This address is user's or contract address that when claim assets, it will goes to. |
     | startTimestamp        | uint64  | The block's timestamp that vesting will be started.                                 |
@@ -37,6 +39,7 @@ Devs can get paid through that contract.
     `released`
         return released ERC20 token amount.
         | name  | type    | description          |
+        | :---  | :----:  |          ---:        |
         | token | address | ERC20 token address  |
         
     # release()
