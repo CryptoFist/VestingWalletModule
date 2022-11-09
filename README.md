@@ -41,6 +41,12 @@ Devs can get paid through that contract.
         | name  | type    | description          |
         | :---  | :----:  |          ---:        |
         | token | address | ERC20 token address  |
+
+        | name        | type             | description                       |
+        | :---        |    :----:        |          ---:                     |
+        | proof       | bytes32[] memory | array of the proof for the leaf   |
+        | root        | bytes32          | hash of the root                  |
+        | leaf        | bytes32          | leaf to verify the existence      |
         
     # release()
         Anyone can call this function to claim native token to beneficiary.
