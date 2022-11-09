@@ -6,48 +6,47 @@ This is implemented that accept all ERC20 and native token.
 Mentioning more detail about that, by only depositing tokens, client will not care to pay devs. 
 Devs can get paid through that contract.
 
-## Variables
-    | name              | type                          | description                                                           |
-    | :---              |    :----:                     |          ---:                                                         |
-    | _released         | uint256                       | Presents total claimed native token amount.                           |
-    | _erc20Released    | mapping(address => uint256)   | Presents total claimed erc20 token amount.                            |
-    | _beneficiary      | address                       | Consider [constructor](#constructor)                                  |
-    | _vestingManager   | address                       | Consider [constructor](#constructor)                                  |
-    | _start            | uint64                        | Consider [constructor](#constructor)                                  |
-    | duration          | uint64                        | Consider [constructor](#constructor)                                  |
-    | tokens            | AddressSet                    | Presents token addresses that deposited to this vesting wallet.       |
+### Variables
+    # _released
+        Presents total claimed native token amount.
+    # _erc20Released
+        Presents total claimed erc20 token amount.
+    # _beneficiary
+        Consider `constructor`
+    # _vestingManager
+        Consider `constructor`
+    # _start
+        Consider `constructor`
+    # duration
+        Consider `constructor`
+    # tokens
+        Presents token addresses that deposited to this vesting wallet.
 
-## constructor
-    | name                  | type    | description                                                                         |
-    | :---                  | :----:  | ---:                                                                                |
-    | vestingManager        | address | As manager address, this address will get permission for several actions            |
-    | beneficiaryAddress    | address | This address is user's or contract address that when claim assets, it will goes to. |
-    | startTimestamp        | uint64  | The block's timestamp that vesting will be started.                                 |
-    | durationSeconds       | uint64  | The duration calculated by timestamp for vesting.                                   |
+### constructor
+    # vestingManager(address)
+        As manager address, this address will get permission for several actions such as add token, change vesting manager, start/cancel vesting and so on.
+        This can't be zero address.
+    # beneficiaryAddress(address)
+        This address is user's or contract address that when claim assets, it will goes to.
+        This also can't be zero address.
+    # startTimestamp(uint64)
+        The block's timestamp that vesting will be started.
+    # durationSeconds
+        The duration calculated by timestamp for vesting.
 
 ### functions
-    `beneficiary`
+    # beneficiary()
         return _beneficiary value.
-    `getTokens`
+    # getTokens()
         return tokens list deposited to `VestingWallet`.
-    `start`
+    # start()
         return _start timestamp value.
-    `duration`
+    # duration()
         return _duration timestamp value.
-    `released`
+    # released()
         return released native token amount.
-    `released`
+    # released(address token)
         return released ERC20 token amount.
-        | name  | type    | description          |
-        | :---  | :----:  |          ---:        |
-        | token | address | ERC20 token address  |
-
-        | name        | type             | description                       |
-        | :---        |    :----:        |          ---:                     |
-        | proof       | bytes32[] memory | array of the proof for the leaf   |
-        | root        | bytes32          | hash of the root                  |
-        | leaf        | bytes32          | leaf to verify the existence      |
-        
     # release()
         Anyone can call this function to claim native token to beneficiary.
         If there is releasable native token, it will be transferred to beneficiary.
