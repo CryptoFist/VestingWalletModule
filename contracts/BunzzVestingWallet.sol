@@ -4,9 +4,7 @@ pragma solidity ^0.8.2;
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "hardhat/console.sol";
 
 contract BunzzVestingWallet is Pausable {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -17,11 +15,11 @@ contract BunzzVestingWallet is Pausable {
     event StartVesting();
 
     uint256 private _released;
-    mapping(address => uint256) private _erc20Released;
     address private _beneficiary;
     address private _vestingManager;
     uint64 private _start;
     uint64 private _duration;
+    mapping(address => uint256) private _erc20Released;
 
     EnumerableSet.AddressSet private tokens;
 

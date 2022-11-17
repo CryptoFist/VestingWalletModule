@@ -8,8 +8,6 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "./BunzzVestingWallet.sol";
 import "./interfaces/IBunzzVestingWallet.sol";
 
-import "hardhat/console.sol";
-
 contract BunzzVestingManager is Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
