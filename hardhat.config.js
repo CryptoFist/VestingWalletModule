@@ -11,10 +11,6 @@ module.exports = {
   defaultNetwork: "hardhat",
   networks: {
     hardhat: {
-      forking: {
-        url: "https://data-seed-prebsc-1-s1.binance.org:8545/",
-        blockNumber: 24239886
-      },
     }
   },
   solidity: {

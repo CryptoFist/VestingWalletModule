@@ -23,13 +23,7 @@ describe ("Test BunzVestingWallet", function () {
         this.startTimestamp = BigInt(await getTimestmp()) + BigInt(hour);
         this.durationSeconds = day;
 
-        this.vestingWallet = await deploy(
-            "BunzzVestingWallet",
-            this.vestingManager.address,
-            this.beneficiary.address,
-            BigInt(this.startTimestamp),
-            BigInt(this.durationSeconds)
-        );
+        this.vestingWallet = await deploy("BunzzVestingWallet");
 
         this.vestingToken = await deploy(
             "ERC20Mock",
@@ -42,228 +36,147 @@ describe ("Test BunzVestingWallet", function () {
         console.log("deployed successfully");
     })
 
-    it ("check initial values", async function () {
+    it ("reverts withdraw if vesting token is not set", async function () {
+        await expect (
+            this.vestingWallet.emergencyWithdraw()
+        ).to.be.revertedWith("vesting token isn't set");
+    })
+
+    it ("reverts release and rovoke if not started vesting", async function () {
+        await expect (
+            this.vestingWallet.release()
+        ).to.be.revertedWith("Pausable: paused");
+
+        await expect (
+            this.vestingWallet.revokeVestingSchedule()
+        ).to.be.revertedWith("Pausable: paused");
+    })
+
+    it ("connect ERC20 vesting token to VestingWallet module", async function () {
+        await expect (
+            this.vestingWallet.connect(this.user_1).connectToOtherContracts(
+                [
+                    this.vestingToken.address
+                ]
+            )
+        ).to.be.revertedWith("Ownable: caller is not the owner");
+
+        await expect (
+            this.vestingWallet.connectToOtherContracts(
+                [
+                    constants.ZERO_ADDRESS
+                ]
+            )
+        ).to.be.revertedWith("invalid contract address");
+
+        await expect (
+            this.vestingWallet.connectToOtherContracts([])
+        ).to.be.revertedWith("invalid contracts length");
+
+        await this.vestingWallet.connectToOtherContracts(
+            [
+                this.vestingToken.address
+            ]
+        );
+
+        expect (await this.vestingWallet.vestingToken()).to.be.equal(this.vestingToken.address);
+    })
+
+    it ("create vesting schedule", async function () {
         let curTime = await getTimestmp();
+        await expect (
+            this.vestingWallet.createVestingSchedule(
+                this.beneficiary.address,
+                BigInt(curTime) + BigInt(1000),
+                10 * day,
+                false
+            )
+        ).to.be.revertedWith("not enough vesting token amount");
+
+        await this.vestingToken.transfer(this.vestingWallet.address, bigNum(10000));
+
+        await expect(
+            this.vestingWallet.createVestingSchedule(
+                constants.ZERO_ADDRESS,
+                BigInt(curTime) + BigInt(1000),
+                10 * day,
+                false
+            )
+        ).to.be.revertedWith("VestingWalletModule: beneficiary is zero address");
+
+        await expect(
+            this.vestingWallet.createVestingSchedule(
+                this.beneficiary.address,
+                BigInt(curTime) - BigInt(1000),
+                10 * day,
+                false
+            )
+        ).to.be.revertedWith("invalid start time");
+
+        await expect(
+            this.vestingWallet.createVestingSchedule(
+                this.beneficiary.address,
+                BigInt(curTime) + BigInt(1000),
+                0,
+                false
+            )
+        ).to.be.revertedWith("invalid duration time");
+
+        await expect (
+            this.vestingWallet.createVestingSchedule(
+                this.beneficiary.address,
+                BigInt(curTime) + BigInt(1000),
+                10 * day,
+                true
+            )
+        ).to.be.emit(this.vestingWallet, "StartVesting");
+
+        expect (await this.vestingWallet.revockable()).to.be.equal(true);
         expect (await this.vestingWallet.beneficiary()).to.be.equal(this.beneficiary.address);
-        expect ((await this.vestingWallet.getTokens()).length).to.be.equal(0);
-        expect (Number(await this.vestingWallet.start())).to.be.equal(Number(this.startTimestamp));
-        expect (Number(await this.vestingWallet.duration())).to.be.equal(Number(this.durationSeconds));
-        
-        expect (smallNum(await this.vestingWallet['vestedAmount(uint64)'](BigInt(curTime)))).to.be.equal(0);
-        expect (smallNum(await this.vestingWallet['vestedAmount(address,uint64)'](this.vestingToken.address, BigInt(curTime)))).to.be.equal(0);
+        expect(await this.vestingWallet.start()).to.be.equal(curTime + 1000);
+        expect(await this.vestingWallet.duration()).to.be.equal(10 * day);
+        expect(await this.vestingWallet.released()).to.be.equal(0);
     })
 
-    it ("reverts startVesting if caller is not the manager", async function () {
+    it ("release vesting token", async function () {
         await expect (
-            this.vestingWallet.startVesting(
-                this.beneficiary.address,
-                this.startTimestamp,
-                this.durationSeconds
-            )
-        ).to.be.revertedWith("no permission");
+            this.vestingWallet.release()
+        ).to.be.revertedWith("no releasable amount");
+        let curTime = await getTimestmp();
+        expect (smallNum(await this.vestingWallet.vestedAmount(BigInt(curTime)))).to.be.equal(0);
+        expect (smallNum(await this.vestingWallet.releasableAmount())).to.be.equal(0);
+
+        await spendTime(day * 2);
+        let releasable = await this.vestingWallet.releasableAmount();
+        let beforeBal = await this.vestingToken.balanceOf(this.beneficiary.address);
+        await this.vestingWallet.release();
+        let afterBal = await this.vestingToken.balanceOf(this.beneficiary.address);
+        expect (smallNum(afterBal) - smallNum(beforeBal)).to.be.closeTo(smallNum(releasable), 0.1);
     })
 
-    it ("reverts startVesting if already created", async function () {
+    it ("revoke vesting schedule and withdraw", async function () {
         await expect (
-            this.vestingWallet.connect(this.vestingManager).startVesting(
-                this.beneficiary.address,
-                this.startTimestamp,
-                this.durationSeconds
+            this.vestingWallet.revokeVestingSchedule()
+        ).to.be.emit(this.vestingWallet, "CancelVesting");
+
+        await expect (
+            this.vestingWallet.connectToOtherContracts(
+                [
+                    this.vestingToken.address
+                ]
             )
-        ).to.be.revertedWith("Pausable: not paused")
-    })
+        ).to.be.revertedWith("remain origin tokens");
 
-    describe ("ETH vesting", function () {
-        it("afer some times, claim vesting tokens", async function () {
-            // Send ETH to vesting wallet.
-            let depositAmount = bigNum(300);
-            await this.vestingManager.sendTransaction({
-                to: this.vestingWallet.address,
-                value: BigInt(depositAmount)
-            });
-            // before startTime, vestedAmount is zero.
-            expect(smallNum(await this.vestingWallet['vestedAmount(uint64)'](BigInt(await getTimestmp())))).to.be.equal(0);
+        let expectAmount = await this.vestingToken.balanceOf(this.vestingWallet.address);
+        let beforeBal = await this.vestingToken.balanceOf(this.deployer.address);
+        await this.vestingWallet.emergencyWithdraw();
+        let afterBal = await this.vestingToken.balanceOf(this.deployer.address);
+        expect (smallNum(afterBal) - smallNum(beforeBal)).to.be.closeTo(smallNum(expectAmount), 0.1);
 
-            await spendTime(2 * hour);
-
-            let currentTime = await getTimestmp();
-            let expectAmount = BigInt(depositAmount) * (BigInt(currentTime) - BigInt(this.startTimestamp)) / BigInt(this.durationSeconds);
-            expect(smallNum(await this.vestingWallet['vestedAmount(uint64)'](BigInt(await getTimestmp())))).to.be.closeTo(smallNum(expectAmount), 0.1);
-            expect(smallNum(await this.vestingWallet['released()']())).to.be.equal(0);
-
-            let beforeBal = await getETHBalance(this.beneficiary.address);
-            await this.vestingWallet['release()']();
-            let afterBal = await getETHBalance(this.beneficiary.address);
-            expectAmount = await this.vestingWallet['released()']();
-            expect(smallNum(afterBal) - smallNum(beforeBal)).to.be.closeTo(smallNum(expectAmount), 0.1);
-        })
-
-        it("cancel veting and check left releasable token is transferred to beneficiary", async function () {
-            await spendTime(4 * hour);
-
-            await expect(
-                this.vestingWallet['cancelVesting()']()
-            ).to.be.revertedWith("no permission");
-
-            let expectAmount = await this.vestingWallet['vestedAmount(uint64)'](await getTimestmp());
-            let releasable = await this.vestingWallet['releasableAmount()']();
-            
-            expectAmount = BigInt(expectAmount) - BigInt(await this.vestingWallet['released()']());
-            expect (smallNum(expectAmount)).to.be.closeTo(smallNum(releasable), 0.1);
-            let expectAmountForManager = BigInt(bigNum(300));
-            let beforeBal = await getETHBalance(this.beneficiary.address);
-            let beforeManagerBal = await getETHBalance(this.vestingManager.address);
-            await expect(
-                this.vestingWallet.connect(this.vestingManager).cancelVesting()
-            ).to.be.emit(this.vestingWallet, "CancelVesting");
-            let afterBal = await getETHBalance(this.beneficiary.address);
-            let afterManagerBal = await getETHBalance(this.vestingManager.address);
-            expectAmountForManager = BigInt(expectAmountForManager) - BigInt(await this.vestingWallet['released()']());
-
-            expect(smallNum(afterBal) - smallNum(beforeBal)).to.be.closeTo(smallNum(expectAmount), 0.1);
-            expect(smallNum(afterManagerBal) - smallNum(beforeManagerBal)).to.be.closeTo(smallNum(expectAmountForManager), 0.1);
-        })
-    })
-
-    describe ("ERC20 vesting", function () {
-        describe ("start and cancel vesting", function () {
-            it("start vesting", async function () {
-                await expect(
-                    this.vestingWallet.connect(this.vestingManager).startVesting(
-                        constants.ZERO_ADDRESS,
-                        this.startTimestamp,
-                        this.durationSeconds
-                    )
-                ).to.be.revertedWith("VestingWalletModule: beneficiary is zero address");
-
-                this.startTimestamp = BigInt(await getTimestmp()) + BigInt(hour);
-
-                await expect(
-                    this.vestingWallet.connect(this.vestingManager).startVesting(
-                        this.beneficiary.address,
-                        this.startTimestamp,
-                        this.durationSeconds
-                    )
-                ).to.be.emit(this.vestingWallet, "StartVesting");
-            })
-
-            it("afer some times, claim vesting tokens", async function () {
-
-                // change beneficiary wallet
-                await expect(
-                    this.vestingWallet.changeBeneficiary(this.beneficiary_1.address)
-                ).to.be.revertedWith("no permission");
-
-                await this.vestingWallet.connect(this.vestingManager).changeBeneficiary(this.beneficiary_1.address);
-
-                // Send VestingToken to vesting wallet.
-                let depositAmount = bigNum(300);
-                await this.vestingToken.transfer(this.vestingWallet.address, BigInt(depositAmount));
-                // before startTime, vestedAmount is zero.
-                expect(smallNum(await this.vestingWallet['vestedAmount(address,uint64)'](this.vestingToken.address, BigInt(await getTimestmp())))).to.be.equal(0);
-
-                await spendTime(2 * hour);
-
-                let currentTime = await getTimestmp();
-                let expectAmount = BigInt(depositAmount) * (BigInt(currentTime) - BigInt(this.startTimestamp)) / BigInt(this.durationSeconds);
-                expect(smallNum(await this.vestingWallet['vestedAmount(address,uint64)'](this.vestingToken.address, BigInt(await getTimestmp())))).to.be.closeTo(smallNum(expectAmount), 0.1);
-                expect(smallNum(await this.vestingWallet['released(address)'](this.vestingToken.address))).to.be.equal(0);
-
-                let beforeBal = await this.vestingToken.balanceOf(this.beneficiary_1.address);
-                await this.vestingWallet['release(address)'](this.vestingToken.address);
-                let afterBal = await this.vestingToken.balanceOf(this.beneficiary_1.address);
-                expectAmount = await this.vestingWallet['released(address)'](this.vestingToken.address);
-                expect(smallNum(afterBal) - smallNum(beforeBal)).to.be.closeTo(smallNum(expectAmount), 0.1);
-            })
-
-            it("cancel veting and check left releasable token is transferred to beneficiary", async function () {
-                await spendTime(4 * hour);
-
-                await expect(
-                    this.vestingWallet['cancelVesting()']()
-                ).to.be.revertedWith("no permission");
-
-                let expectAmount = await this.vestingWallet['vestedAmount(address,uint64)'](this.vestingToken.address, await getTimestmp());
-                expectAmount = BigInt(expectAmount) - BigInt(await this.vestingWallet['released(address)'](this.vestingToken.address));
-                let expectAmountForManager = BigInt(bigNum(300));
-                let beforeBal = await this.vestingToken.balanceOf(this.beneficiary_1.address);
-                let beforeManagerBal = await this.vestingToken.balanceOf(this.vestingManager.address);
-                await expect(
-                    this.vestingWallet.connect(this.vestingManager).cancelVesting()
-                ).to.be.emit(this.vestingWallet, "CancelVesting");
-                let afterBal = await this.vestingToken.balanceOf(this.beneficiary_1.address);
-                let afterManagerBal = await this.vestingToken.balanceOf(this.vestingManager.address);
-                expectAmountForManager = BigInt(expectAmountForManager) - BigInt(await this.vestingWallet['released(address)'](this.vestingToken.address));
-
-                expect(smallNum(afterBal) - smallNum(beforeBal)).to.be.closeTo(smallNum(expectAmount), 0.1);
-                expect(smallNum(afterManagerBal) - smallNum(beforeManagerBal)).to.be.closeTo(smallNum(expectAmountForManager), 0.1);
-            })
-        })
-
-        describe ("start vesting and fill full period", function () {
-            it("start vesting", async function () {
-                await expect(
-                    this.vestingWallet.connect(this.vestingManager).startVesting(
-                        constants.ZERO_ADDRESS,
-                        this.startTimestamp,
-                        this.durationSeconds
-                    )
-                ).to.be.revertedWith("VestingWalletModule: beneficiary is zero address");
-
-                this.startTimestamp = BigInt(await getTimestmp()) + BigInt(hour);
-
-                await expect(
-                    this.vestingWallet.connect(this.vestingManager).startVesting(
-                        this.beneficiary.address,
-                        this.startTimestamp,
-                        this.durationSeconds
-                    )
-                ).to.be.emit(this.vestingWallet, "StartVesting");
-            })
-
-            it("afer some times, claim vesting tokens", async function () {
-
-                // change beneficiary wallet
-                await expect(
-                    this.vestingWallet.changeBeneficiary(this.beneficiary_1.address)
-                ).to.be.revertedWith("no permission");
-
-                await this.vestingWallet.connect(this.vestingManager).changeBeneficiary(this.beneficiary_1.address);
-
-                // Send VestingToken to vesting wallet.
-                let depositAmount = bigNum(300);
-                await this.vestingToken.transfer(this.vestingWallet.address, BigInt(depositAmount));
-                // before startTime, vestedAmount is zero.
-                expect(smallNum(await this.vestingWallet['vestedAmount(address,uint64)'](this.vestingToken.address, BigInt(await getTimestmp())))).to.be.equal(0);
-
-                await spendTime(2 * hour);
-
-                let currentTime = await getTimestmp();
-                let expectAmount = BigInt(depositAmount) * (BigInt(currentTime) - BigInt(this.startTimestamp)) / BigInt(this.durationSeconds);
-                expect(smallNum(await this.vestingWallet['vestedAmount(address,uint64)'](this.vestingToken.address, BigInt(await getTimestmp())))).to.be.closeTo(smallNum(expectAmount), 0.1);
-                expect(smallNum(await this.vestingWallet['released(address)'](this.vestingToken.address))).to.be.equal(0);
-
-                let beforeBal = await this.vestingToken.balanceOf(this.beneficiary_1.address);
-                await this.vestingWallet['release(address)'](this.vestingToken.address);
-                let afterBal = await this.vestingToken.balanceOf(this.beneficiary_1.address);
-                expectAmount = await this.vestingWallet['released(address)'](this.vestingToken.address);
-                expect(smallNum(afterBal) - smallNum(beforeBal)).to.be.closeTo(smallNum(expectAmount), 0.1);
-            })
-
-            it("after duration get all vested amount", async function () {
-                await spendTime(2 * day);
-                await this.vestingWallet.connect(this.vestingManager).changeVestingManager(this.vestingManager_1.address);
-
-                let beforeexpectAmount = await this.vestingWallet['released(address)'](this.vestingToken.address);
-                let beforeBal = await this.vestingToken.balanceOf(this.beneficiary_1.address);
-                await this.vestingWallet['release(address)'](this.vestingToken.address);
-                let afterBal = await this.vestingToken.balanceOf(this.beneficiary_1.address);
-                let afterexpectAmount = await this.vestingWallet['released(address)'](this.vestingToken.address);
-                expect(smallNum(afterBal) - smallNum(beforeBal)).to.be.closeTo(smallNum(afterexpectAmount) - smallNum(beforeexpectAmount), 0.1);
-
-                expect (smallNum(await this.vestingWallet['releasableAmount(address)'](this.vestingToken.address))).to.be.equal(0);
-            })
-        })
-        
+        await this.vestingWallet.connectToOtherContracts(
+            [
+                this.vestingToken.address
+            ]
+        );
     })
 })
