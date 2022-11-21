@@ -13,7 +13,6 @@ contract BunzzVestingWallet is Ownable, Pausable {
 
     address public _vestingToken;
     address private _beneficiary;
-    address private _vestingManager;
     uint256 private _released;
     uint64 private _start;
     uint64 private _duration;
