@@ -13,8 +13,8 @@ In addition, this `VestingWallet` connect to `ERC20` contract.
 
 ## How to Use
 
-1. Deploy smart contract via Bunzz
-2. Set `vesting token` address by calling `connectToOtherContracts` function.
+1. Deploy smart contract via `Bunzz`
+2. Set `vesting token` address by calling `connectToOtherContracts` function.(If you deploy this module and `ERC20` at the same time, the `connectToOtherContracts` function is executed by `Bunzz` automatically)
 3. By calling `createVestingSchedule` function, create vesting schedule. 
    1) Before that, you should deposit vesting token.
 4. If you think it's not fair, you can revoke the vesting schedule anytime by calling `revokeVestingSchedule` function.
@@ -27,7 +27,7 @@ In addition, this `VestingWallet` connect to `ERC20` contract.
 
 ### `connectToOtherContracts`
 
-Bunzz style function.  
+`Bunzz` style function.  
 `contracts` length is 1 and contracts[0] is vesting token address.
 
 | name        | type             | description                       |
