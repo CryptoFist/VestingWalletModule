@@ -71,6 +71,7 @@ contract BunzzVestingWallet is Ownable, Pausable {
     /// @param beneficiaryAddress The address of beneficiary.
     /// @param startTimestamp The timestamp of start vesting.
     /// @param durationSeconds Vesting period
+    /// @param revockable_ Whether can revocek or not.
     function createVestingSchedule(
         address beneficiaryAddress,
         uint64 startTimestamp,
