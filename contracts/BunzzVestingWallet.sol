@@ -58,12 +58,20 @@ contract BunzzVestingWallet is Ownable, Pausable {
         return _vestingToken;
     }
 
+    function vestedAmount(uint64 timestamp) public view returns (uint256) {
+        return _vestingSchedule(IERC20(_vestingToken).balanceOf(address(this)) + _released, timestamp);
+    }
+
+    function releasableAmount() public view returns (uint256) {
+        return vestedAmount(uint64(block.timestamp)) - _released;
+    }
+
     function release() public whenNotPaused {
         uint256 releasable = releasableAmount();
         require (releasable > 0, "no releasable amount");
         _released += releasable;
         emit Released(releasable);
-        SafeERC20.safeTransfer(IERC20(_vestingToken), beneficiary(), releasable);
+        SafeERC20.safeTransfer(IERC20(_vestingToken), _beneficiary, releasable);
     }
 
     /// @notice Start again stoped vesting
@@ -110,21 +118,13 @@ contract BunzzVestingWallet is Ownable, Pausable {
         SafeERC20.safeTransfer(IERC20(_vestingToken), owner(), vestingTokenAmount);
     }
 
-    function vestedAmount(uint64 timestamp) public view returns (uint256) {
-        return _vestingSchedule(IERC20(_vestingToken).balanceOf(address(this)) + _released, timestamp);
-    }
-
-    function releasableAmount() public view returns (uint256) {
-        return vestedAmount(uint64(block.timestamp)) - released();
-    }
-
     function _vestingSchedule(uint256 totalAllocation, uint64 timestamp) internal view returns (uint256) {
-        if (timestamp < start()) {
+        if (timestamp < _start) {
             return 0;
-        } else if (timestamp > start() + duration()) {
+        } else if (timestamp > _start + _duration) {
             return totalAllocation;
         } else {
-            return (totalAllocation * (timestamp - start())) / duration();
+            return (totalAllocation * (timestamp - _start)) / _duration;
         }
     }
 
