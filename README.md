@@ -18,7 +18,7 @@ In addition, this `VestingWallet` connect to `ERC20` contract.
 3. By calling `createVestingSchedule` function, create vesting schedule. 
    1) Before that, you should deposit vesting token.
 4. If you think it's not fair, you can revoke the vesting schedule anytime by calling `revokeVestingSchedule` function.
-5. Beneficiary will get reelased vesting tokens when someone calls `release` function.
+5. Beneficiary will get released vesting tokens when someone calls `release` function.
 
 
 ## Functions
